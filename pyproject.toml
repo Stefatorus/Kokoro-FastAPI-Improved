@@ -1,6 +1,6 @@
 [project]
 name = "kokoro-fastapi"
-version = "0.3.2"
+version = "0.3.3"
 description = "FastAPI TTS Service"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -43,12 +43,19 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-gpu = ["torch==2.8.0+cu129"]
+gpu = [
+    "torch==2.8.0+cu129",
+    "torchaudio==2.8.0+cu129",
+]
 rocm = [
     "torch==2.8.0+rocm6.4",
+    "torchaudio==2.8.0+rocm6.4",
     "pytorch-triton-rocm>=3.2.0",
 ]
-cpu = ["torch==2.8.0"]
+cpu = [
+    "torch==2.8.0",
+    "torchaudio==2.8.0",
+]
 test = [
     "pytest==8.3.5",
     "pytest-cov==6.0.0",
@@ -70,6 +77,11 @@ conflicts = [
 
 [tool.uv.sources]
 torch = [
+    { index = "pytorch-cpu", extra = "cpu" },
+    { index = "pytorch-cuda", extra = "gpu" },
+    { index = "pytorch-rocm", extra = "rocm" },
+]
+torchaudio = [
     { index = "pytorch-cpu", extra = "cpu" },
     { index = "pytorch-cuda", extra = "gpu" },
     { index = "pytorch-rocm", extra = "rocm" },
