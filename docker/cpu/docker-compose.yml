@@ -7,6 +7,7 @@ services:
     volumes:
       - ../../api:/app/api
       - ../../AP-BWE:/app/AP-BWE  # Mount AP-BWE submodule for bandwidth extension
+      - kokoro-models:/app/api/src/models  # Persistent volume for models (600MB, downloaded once)
     ports:
       - "8880:8880"
     environment:
@@ -42,3 +43,7 @@ services:
   #     - DISABLE_LOCAL_SAVING=false  # Set to 'true' to disable local saving and hide file view
   #     - API_HOST=kokoro-tts  # Set TTS service URL
   #     - API_PORT=8880  # Set TTS service PORT
+
+volumes:
+  kokoro-models:
+    name: kokoro-models

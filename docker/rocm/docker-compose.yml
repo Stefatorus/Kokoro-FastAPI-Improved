@@ -19,6 +19,7 @@ services:
         - ./kokoro-tts/config:/root/.config/miopen
         - ./kokoro-tts/cache:/root/.cache/miopen
         - ../../AP-BWE:/app/AP-BWE  # Mount AP-BWE submodule for bandwidth extension
+        - kokoro-models:/app/api/src/models  # Persistent volume for models (600MB, downloaded once)
       ports:
         - 8880:8880
       environment:
@@ -44,3 +45,7 @@ services:
         # 4. Add the following environment variables to enable caching of model shapes:
         #       - MIOPEN_FIND_MODE=2
         # 5. Restart the container and run Kokoro again, it should be much faster
+
+volumes:
+  kokoro-models:
+    name: kokoro-models
