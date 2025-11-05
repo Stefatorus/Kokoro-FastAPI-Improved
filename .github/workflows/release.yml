@@ -94,6 +94,7 @@ jobs:
           driver-opts: |
             image=moby/buildkit:latest
             network=host
+          buildkitd-flags: --allow-insecure-entitlement security.insecure --allow-insecure-entitlement network.host
 
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@v3 # Use v3
@@ -110,9 +111,11 @@ jobs:
           # Extract base target name (cpu/gpu/rocm) from build_target
           BASE_TARGET=$(echo "${{ matrix.build_target }}" | sed 's/-amd64$//' | sed 's/-arm64$//')
 
-          # Build for single platform to avoid disk space issues
+          # Build for single platform with cache
           docker buildx bake ${BASE_TARGET} \
             --set "*.platform=${{ matrix.platform }}" \
+            --set "*.cache-from=type=gha,scope=${BASE_TARGET}-${{ matrix.platform }}" \
+            --set "*.cache-to=type=gha,mode=max,scope=${BASE_TARGET}-${{ matrix.platform }}" \
             --push
 
   create-release:

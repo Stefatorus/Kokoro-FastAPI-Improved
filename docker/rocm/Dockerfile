@@ -41,9 +41,10 @@ WORKDIR /app
 # Copy dependency files
 COPY --chown=appuser:appuser pyproject.toml ./pyproject.toml
 
-# Install dependencies with ROCm extras
-RUN uv venv --python 3.12 && \
-    uv sync --extra rocm --no-cache && \
+# Install dependencies with ROCm extras using cache mount
+RUN --mount=type=cache,target=/home/appuser/.cache/uv,uid=1001,gid=1001 \
+    uv venv --python 3.12 && \
+    uv sync --extra rocm && \
     uv pip install requests tqdm
 
 # Run kbd files
@@ -68,7 +69,6 @@ RUN chmod +x ./entrypoint.sh
 ENV PYTHONUNBUFFERED=1 \
     PYTHONPATH=/app:/app/api \
     PATH="/app/.venv/bin:$PATH" \
-    UV_LINK_MODE=copy \
     UV_HTTP_TIMEOUT=120 \
     UV_HTTP_RETRIES=3 \
     USE_GPU=true \

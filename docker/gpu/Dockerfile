@@ -19,9 +19,10 @@ WORKDIR /app
 # Copy dependency files
 COPY --chown=appuser:appuser pyproject.toml ./pyproject.toml
 
-# Install dependencies with GPU extras
-RUN uv venv --python 3.10 && \
-    uv sync --extra gpu --no-cache && \
+# Install dependencies with GPU extras using cache mount
+RUN --mount=type=cache,target=/home/appuser/.cache/uv,uid=1001,gid=1001 \
+    uv venv --python 3.10 && \
+    uv sync --extra gpu && \
     uv pip install requests tqdm
 
 # Copy project files including models
@@ -35,7 +36,6 @@ RUN chmod +x ./entrypoint.sh
 ENV PATH="/app/.venv/bin:$PATH" \
     PYTHONUNBUFFERED=1 \
     PYTHONPATH=/app:/app/api \
-    UV_LINK_MODE=copy \
     UV_HTTP_TIMEOUT=120 \
     UV_HTTP_RETRIES=3 \
     USE_GPU=true \
