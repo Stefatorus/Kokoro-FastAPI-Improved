@@ -19,6 +19,8 @@ services:
       - ENABLE_BWE=true  # Set to false to disable bandwidth extension
       - BWE_CHECKPOINT_PATH=/app/AP-BWE/checkpoints/24kto48k/g_24kto48k
       - BWE_OUTPUT_SAMPLE_RATE=48000
+      # Logging configuration
+      - API_LOG_LEVEL=DEBUG
     deploy:
       resources:
         reservations:
