@@ -2,8 +2,9 @@ FROM python:3.10-slim
 
 # Install dependencies and check espeak location
 # Rust is required to build sudachipy and pyopenjtalk-plus
+# cmake, make, build-essential are required for pyopenjtalk compilation
 RUN apt-get update -y &&  \
-    apt-get install -y espeak-ng espeak-ng-data git libsndfile1 curl ffmpeg g++ && \
+    apt-get install -y espeak-ng espeak-ng-data git libsndfile1 curl ffmpeg g++ cmake make build-essential && \
     apt-get clean && rm -rf /var/lib/apt/lists/* && \
     mkdir -p /usr/share/espeak-ng-data && \
     ln -s /usr/lib/*/espeak-ng-data/* /usr/share/espeak-ng-data/ && \
@@ -37,6 +38,8 @@ ENV PATH="/home/appuser/.cargo/bin:/app/.venv/bin:$PATH" \
     PYTHONUNBUFFERED=1 \
     PYTHONPATH=/app:/app/api \
     UV_LINK_MODE=copy \
+    UV_HTTP_TIMEOUT=120 \
+    UV_HTTP_RETRIES=3 \
     USE_GPU=false \
     PHONEMIZER_ESPEAK_PATH=/usr/bin \
     PHONEMIZER_ESPEAK_DATA=/usr/share/espeak-ng-data \
