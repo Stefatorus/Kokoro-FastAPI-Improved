@@ -75,13 +75,9 @@ ENV PYTHONUNBUFFERED=1 \
     PHONEMIZER_ESPEAK_PATH=/usr/bin \
     PHONEMIZER_ESPEAK_DATA=/usr/share/espeak-ng-data \
     ESPEAK_DATA_PATH=/usr/share/espeak-ng-data \
-    DEVICE="rocm"
-
-ENV DOWNLOAD_MODEL=true
-# Download model if enabled
-RUN if [ "$DOWNLOAD_MODEL" = "true" ]; then \
-    python download_model.py --output api/src/models/v1_0; \
-    fi
+    DEVICE="rocm" \
+    DOWNLOAD_MODEL=true
 
 # Run FastAPI server through entrypoint.sh
+# Model will be downloaded at runtime by entrypoint.sh
 CMD ["./entrypoint.sh"]

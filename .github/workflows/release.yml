@@ -37,6 +37,7 @@ jobs:
       # This environment variable will override the VERSION variable in docker-bake.hcl
       VERSION: ${{ needs.prepare-release.outputs.version_tag }} # Use tag version (vX.Y.Z) for bake
     strategy:
+      max-parallel: 1  # Build sequentially to avoid disk space exhaustion
       matrix:
         include:
           - build_target: "cpu-amd64"
