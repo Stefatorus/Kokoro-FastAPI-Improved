@@ -156,15 +156,11 @@ class BWEService:
                     # Average stereo to mono for BWE processing
                     # AP-BWE is trained on mono audio, so we convert to mono
                     logger.debug("Converting stereo to mono for BWE processing")
-                    audio_mono = audio_tensor.mean(dim=0, keepdim=True)
+                    audio_mono = audio_tensor.mean(dim=0, keepdim=True).to(self.device)
 
-                    # CRITICAL: Upsample to 48kHz FIRST
-                    audio_48k = aF.resample(audio_mono, orig_freq=sample_rate, new_freq=48000)
-                    audio_48k = audio_48k.to(self.device)
-
-                    # STFT
+                    # STFT at 24kHz - BWE model will extend bandwidth to 48kHz
                     amp_nb, pha_nb, com_nb = amp_pha_stft(
-                        audio_48k,
+                        audio_mono,
                         self.config.n_fft,
                         self.config.hop_size,
                         self.config.win_size
@@ -188,13 +184,12 @@ class BWEService:
                 else:
                     logger.debug("Processing mono audio")
 
-                    # CRITICAL: Upsample to 48kHz FIRST
-                    audio_48k = aF.resample(audio_tensor, orig_freq=sample_rate, new_freq=48000)
-                    audio_48k = audio_48k.to(self.device)
+                    # Move to device
+                    audio_tensor = audio_tensor.to(self.device)
 
-                    # STFT
+                    # STFT at 24kHz - BWE model will extend bandwidth to 48kHz
                     amp_nb, pha_nb, com_nb = amp_pha_stft(
-                        audio_48k,
+                        audio_tensor,
                         self.config.n_fft,
                         self.config.hop_size,
                         self.config.win_size
