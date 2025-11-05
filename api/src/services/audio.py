@@ -125,7 +125,7 @@ class AudioService:
     """Service for audio format conversions with streaming support"""
 
     # Supported formats
-    SUPPORTED_FORMATS = {"wav", "mp3", "opus", "flac", "aac", "pcm"}
+    SUPPORTED_FORMATS = {"wav", "mp3", "opus", "flac", "aac", "m4a", "pcm"}
 
     # Default audio format settings balanced for speed and compression
     DEFAULT_SETTINGS = {
@@ -141,6 +141,9 @@ class AudioService:
         },
         "aac": {
             "bitrate": "192k",  # Default AAC bitrate
+        },
+        "m4a": {
+            "bitrate": "192k",  # Default M4A bitrate (AAC in MP4 container)
         },
     }
 

@@ -27,9 +27,10 @@ class StreamingAudioWriter:
             "opus": "libopus",
             "flac": "flac",
             "aac": "aac",
+            "m4a": "aac",  # M4A is AAC in MP4 container
         }
         # Format-specific setup
-        if self.format in ["wav", "flac", "mp3", "pcm", "aac", "opus"]:
+        if self.format in ["wav", "flac", "mp3", "pcm", "aac", "m4a", "opus"]:
             if self.format != "pcm":
                 self.output_buffer = BytesIO()
                 container_options = {}
@@ -39,10 +40,18 @@ class StreamingAudioWriter:
                     container_options = {'write_xing': '0'}
                     logger.debug("Disabling Xing VBR header for MP3 encoding.")
 
+                # Determine container format
+                if self.format == "aac":
+                    container_format = "adts"  # AAC in ADTS container
+                elif self.format == "m4a":
+                    container_format = "ipod"  # AAC in MP4 container (ipod for better compatibility)
+                else:
+                    container_format = self.format
+
                 self.container = av.open(
                     self.output_buffer,
                     mode="w",
-                    format=self.format if self.format != "aac" else "adts",
+                    format=container_format,
                     options=container_options # Pass options here
                 )
                 self.stream = self.container.add_stream(
@@ -51,7 +60,7 @@ class StreamingAudioWriter:
                     layout="mono" if self.channels == 1 else "stereo",
                 )
                 # Set bit_rate only for codecs where it's applicable and useful
-                if self.format in ['mp3', 'aac', 'opus']:
+                if self.format in ['mp3', 'aac', 'm4a', 'opus']:
                     self.stream.bit_rate = 128000
         else:
             raise ValueError(f"Unsupported format: {self.format}") # Use self.format here
