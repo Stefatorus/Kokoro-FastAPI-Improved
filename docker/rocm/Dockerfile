@@ -16,6 +16,9 @@ RUN apt-get update && apt upgrade -y && apt-get install -y --no-install-recommen
     wget \
     nano \
     g++ \
+    cmake \
+    make \
+    build-essential \
     zstd \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/* \
@@ -30,9 +33,7 @@ RUN apt-get update && apt upgrade -y && apt-get install -y --no-install-recommen
     # Create non-root user and set up directories and permissions
     && useradd -m -u 1001 appuser \
     && mkdir -p /app/api/src/models/v1_0 \
-    && chown -R appuser:appuser /app \
-    # Models folder
-    && mkdir -p /app/api/src/models/v1_0
+    && chown -R appuser:appuser /app
 
 USER appuser
 WORKDIR /app
@@ -40,20 +41,15 @@ WORKDIR /app
 # Copy dependency files
 COPY --chown=appuser:appuser pyproject.toml ./pyproject.toml
 
-ENV PHONEMIZER_ESPEAK_PATH=/usr/bin \
-    PHONEMIZER_ESPEAK_DATA=/usr/share/espeak-ng-data \
-    ESPEAK_DATA_PATH=/usr/share/espeak-ng-data
-
-# Install dependencies with GPU extras (using cache mounts)
-RUN --mount=type=cache,target=/root/.cache/uv \
-    uv venv --python 3.12 && \
-    uv sync --extra rocm && \
+# Install dependencies with ROCm extras
+RUN uv venv --python 3.12 && \
+    uv sync --extra rocm --no-cache && \
     uv pip install requests tqdm
 
 # Run kbd files
 ENV ROCM_VERSION=6.4.3
 COPY --chown=appuser:appuser docker/rocm/kbd_install.sh /tmp/
-RUN /tmp/kbd_install.sh
+RUN bash /tmp/kbd_install.sh
 
 # Support older GFX Arch
 RUN cd /tmp && wget https://archlinux.org/packages/extra/x86_64/rocblas/download -O rocblas.tar.zst \
@@ -66,7 +62,6 @@ RUN cd /tmp && wget https://archlinux.org/packages/extra/x86_64/rocblas/download
 COPY --chown=appuser:appuser api ./api
 COPY --chown=appuser:appuser web ./web
 COPY --chown=appuser:appuser docker/scripts/ ./
-
 RUN chmod +x ./entrypoint.sh
 
 # Set all environment variables in one go
@@ -74,9 +69,19 @@ ENV PYTHONUNBUFFERED=1 \
     PYTHONPATH=/app:/app/api \
     PATH="/app/.venv/bin:$PATH" \
     UV_LINK_MODE=copy \
+    UV_HTTP_TIMEOUT=120 \
+    UV_HTTP_RETRIES=3 \
     USE_GPU=true \
-    DOWNLOAD_MODEL=true \
-    DEVICE="gpu"
+    PHONEMIZER_ESPEAK_PATH=/usr/bin \
+    PHONEMIZER_ESPEAK_DATA=/usr/share/espeak-ng-data \
+    ESPEAK_DATA_PATH=/usr/share/espeak-ng-data \
+    DEVICE="rocm"
+
+ENV DOWNLOAD_MODEL=true
+# Download model if enabled
+RUN if [ "$DOWNLOAD_MODEL" = "true" ]; then \
+    python download_model.py --output api/src/models/v1_0; \
+    fi
 
 # Run FastAPI server through entrypoint.sh
 CMD ["./entrypoint.sh"]
