@@ -201,6 +201,7 @@ class AudioService:
             # Update timestamps if present (double all times since sample rate doubled)
             if audio_chunk.word_timestamps is not None:
                 # Timestamps are already in seconds, no need to update
+                pass
 
             logger.debug(f"BWE enhanced audio from {len(audio_chunk.audio)} to {len(enhanced_audio)} samples")
             return audio_chunk
