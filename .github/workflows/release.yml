@@ -37,19 +37,28 @@ jobs:
       # This environment variable will override the VERSION variable in docker-bake.hcl
       VERSION: ${{ needs.prepare-release.outputs.version_tag }} # Use tag version (vX.Y.Z) for bake
     strategy:
-      max-parallel: 1  # Build sequentially to avoid disk space exhaustion
+      max-parallel: 2  # Allow 2 builds at once (GPU platforms can build together)
       matrix:
         include:
-          - build_target: "cpu-amd64"
-            platform: "linux/amd64"
-          - build_target: "cpu-arm64"
-            platform: "linux/arm64"
+          # Priority 1: GPU builds (amd64 first, arm64 second)
           - build_target: "gpu-amd64"
             platform: "linux/amd64"
+            priority: 1
           - build_target: "gpu-arm64"
             platform: "linux/arm64"
+            priority: 2
+          # Priority 3: CPU amd64
+          - build_target: "cpu-amd64"
+            platform: "linux/amd64"
+            priority: 3
+          # Priority 4: ROCm amd64
           - build_target: "rocm"
             platform: "linux/amd64"
+            priority: 4
+          # Priority 5: CPU arm64 (last)
+          - build_target: "cpu-arm64"
+            platform: "linux/arm64"
+            priority: 5
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
