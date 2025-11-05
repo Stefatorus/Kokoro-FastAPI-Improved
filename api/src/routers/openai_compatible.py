@@ -204,7 +204,7 @@ async def create_speech(
             "pcm": "audio/pcm",
         }.get(request.response_format, f"audio/{request.response_format}")
 
-        writer = StreamingAudioWriter(request.response_format, sample_rate=24000)
+        writer = StreamingAudioWriter(request.response_format, sample_rate=AudioService.get_output_sample_rate())
 
         # Check if streaming is requested (default for OpenAI client)
         if request.stream:

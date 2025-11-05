@@ -23,7 +23,8 @@ COPY --chown=appuser:appuser pyproject.toml ./pyproject.toml
 
 # Install dependencies with CPU extras
 RUN uv venv --python 3.10 && \
-    uv sync --extra cpu --no-cache
+    uv sync --extra cpu --no-cache && \
+    uv pip install requests tqdm
 
 # Copy project files including models
 COPY --chown=appuser:appuser api ./api

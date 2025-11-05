@@ -73,3 +73,15 @@ uv.lock
 
 # Mac MPS virtualenv for dual testing
 .venv-mps
+
+# BWE test files
+test_bwe*.py
+test_stereo*.py
+process_stereo*.py
+*-BWE.wav
+*-ServiceTest.wav
+test_24khz.wav
+test_48khz*.wav
+
+# BWE checkpoints (large files, auto-downloaded)
+AP-BWE/checkpoints/

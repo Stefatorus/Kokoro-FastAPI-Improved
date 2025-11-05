@@ -4,7 +4,7 @@ import math
 import struct
 import time
 from io import BytesIO
-from typing import Tuple
+from typing import Tuple, Optional
 
 import numpy as np
 import scipy.io.wavfile as wavfile
@@ -17,13 +17,22 @@ from ..core.config import settings
 from ..inference.base import AudioChunk
 from .streaming_audio_writer import StreamingAudioWriter
 
+# Import BWE service
+try:
+    from .bwe_service import BWEService
+    BWE_AVAILABLE = True
+except Exception as e:
+    logger.warning(f"BWE service not available: {e}")
+    BWE_AVAILABLE = False
+    BWEService = None
+
 
 class AudioNormalizer:
     """Handles audio normalization state for a single stream"""
 
-    def __init__(self):
+    def __init__(self, sample_rate: int = 24000):
         self.chunk_trim_ms = settings.gap_trim_ms
-        self.sample_rate = 24000  # Sample rate of the audio
+        self.sample_rate = sample_rate  # Sample rate of the audio
         self.samples_to_trim = int(self.chunk_trim_ms * self.sample_rate / 1000)
         self.samples_to_pad_start = int(50 * self.sample_rate / 1000)
 
@@ -135,6 +144,71 @@ class AudioService:
         },
     }
 
+    # Global BWE service instance
+    _bwe_service: Optional[BWEService] = None
+
+    @staticmethod
+    def get_output_sample_rate() -> int:
+        """Get the output sample rate based on BWE settings
+
+        Returns:
+            48000 if BWE is enabled, 24000 otherwise
+        """
+        return settings.bwe_output_sample_rate if settings.enable_bwe else 24000
+
+    @classmethod
+    def get_bwe_service(cls) -> Optional[BWEService]:
+        """Get or create BWE service instance"""
+        if not settings.enable_bwe:
+            return None
+
+        if not BWE_AVAILABLE:
+            logger.warning("BWE requested but not available")
+            return None
+
+        if cls._bwe_service is None:
+            cls._bwe_service = BWEService()
+            success = cls._bwe_service.initialize(
+                checkpoint_path=settings.bwe_checkpoint_path,
+                device=settings.get_device()
+            )
+            if not success:
+                cls._bwe_service = None
+                logger.error("Failed to initialize BWE service")
+                return None
+
+        return cls._bwe_service
+
+    @staticmethod
+    def enhance_with_bwe(audio_chunk: AudioChunk, bwe_service: Optional[BWEService]) -> AudioChunk:
+        """Enhance audio with bandwidth extension if available
+
+        Args:
+            audio_chunk: Input audio chunk at 24 kHz
+            bwe_service: BWE service instance (or None to skip)
+
+        Returns:
+            Enhanced audio chunk at 48 kHz (or original if BWE not available)
+        """
+        if bwe_service is None or not bwe_service.is_available():
+            return audio_chunk
+
+        try:
+            # Enhance audio (24 kHz → 48 kHz)
+            enhanced_audio = bwe_service.enhance(audio_chunk.audio, sample_rate=24000)
+            audio_chunk.audio = enhanced_audio
+
+            # Update timestamps if present (double all times since sample rate doubled)
+            if audio_chunk.word_timestamps is not None:
+                # Timestamps are already in seconds, no need to update
+
+            logger.debug(f"BWE enhanced audio from {len(audio_chunk.audio)} to {len(enhanced_audio)} samples")
+            return audio_chunk
+
+        except Exception as e:
+            logger.error(f"BWE enhancement failed: {e}")
+            return audio_chunk
+
     @staticmethod
     async def convert_audio(
         audio_chunk: AudioChunk,
@@ -145,6 +219,7 @@ class AudioService:
         is_last_chunk: bool = False,
         trim_audio: bool = True,
         normalizer: AudioNormalizer = None,
+        apply_bwe: bool = None,
     ) -> AudioChunk:
         """Convert audio data to specified format with streaming support
 
@@ -157,6 +232,7 @@ class AudioService:
             is_last_chunk: Whether this is the last chunk
             trim_audio: Whether audio should be trimmed
             normalizer: Optional AudioNormalizer instance for consistent normalization
+            apply_bwe: Whether to apply bandwidth extension. If None, use settings.enable_bwe
 
         Returns:
             Bytes of the converted audio chunk
@@ -167,9 +243,27 @@ class AudioService:
             if output_format not in AudioService.SUPPORTED_FORMATS:
                 raise ValueError(f"Format {output_format} not supported")
 
+            # Determine BWE application
+            if apply_bwe is None:
+                apply_bwe = settings.enable_bwe
+
+            # Apply BWE if enabled and this is not an empty finalization chunk
+            if apply_bwe and len(audio_chunk.audio) > 0:
+                bwe_service = AudioService.get_bwe_service()
+                if bwe_service is not None:
+                    audio_chunk = AudioService.enhance_with_bwe(audio_chunk, bwe_service)
+                    # Update sample rate for downstream processing
+                    sample_rate = settings.bwe_output_sample_rate
+                    if normalizer is not None:
+                        normalizer.sample_rate = sample_rate
+                else:
+                    sample_rate = 24000
+            else:
+                sample_rate = 24000
+
             # Always normalize audio to ensure proper amplitude scaling
             if normalizer is None:
-                normalizer = AudioNormalizer()
+                normalizer = AudioNormalizer(sample_rate=sample_rate)
 
             audio_chunk.audio = normalizer.normalize(audio_chunk.audio)
 

@@ -7,13 +7,18 @@ services:
       dockerfile: docker/gpu/Dockerfile
     volumes:
       - ../../api:/app/api
+      - ../../AP-BWE:/app/AP-BWE  # Mount AP-BWE submodule for bandwidth extension
     user: "1001:1001"  # Ensure container runs as UID 1001 (appuser)
     ports:
       - "8880:8880"
     environment:
-      - PYTHONPATH=/app:/app/api
+      - PYTHONPATH=/app:/app/api:/app/AP-BWE
       - USE_GPU=true
       - PYTHONUNBUFFERED=1
+      # AP-BWE Configuration (Bandwidth Extension 24kHz → 48kHz)
+      - ENABLE_BWE=true  # Set to false to disable bandwidth extension
+      - BWE_CHECKPOINT_PATH=/app/AP-BWE/checkpoints/24kto48k/g_24kto48k
+      - BWE_OUTPUT_SAMPLE_RATE=48000
     deploy:
       resources:
         reservations:

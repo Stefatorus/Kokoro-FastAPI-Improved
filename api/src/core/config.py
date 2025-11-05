@@ -32,6 +32,11 @@ class Settings(BaseSettings):
     # Audio Settings
     sample_rate: int = 24000
     default_volume_multiplier: float = 1.0
+
+    # Bandwidth Extension Settings (AP-BWE)
+    enable_bwe: bool = False  # Whether to enable bandwidth extension (24 kHz → 48 kHz)
+    bwe_checkpoint_path: str = "../AP-BWE/checkpoints/24kto48k/g_24kto48k"  # Path to AP-BWE checkpoint
+    bwe_output_sample_rate: int = 48000  # Output sample rate after BWE
     # Text Processing Settings
     target_min_tokens: int = 175  # Target minimum tokens per chunk
     target_max_tokens: int = 250  # Target maximum tokens per chunk
