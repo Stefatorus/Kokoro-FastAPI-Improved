@@ -44,6 +44,10 @@ dependencies = [
 
 [project.optional-dependencies]
 gpu = ["torch==2.8.0+cu129"]
+rocm = [
+    "torch==2.8.0+rocm6.4",
+    "pytorch-triton-rocm>=3.2.0",
+]
 cpu = ["torch==2.8.0"]
 test = [
     "pytest==8.3.5",
@@ -55,12 +59,23 @@ test = [
 ]
 
 [tool.uv]
-conflicts = [[{ extra = "cpu" }, { extra = "gpu" }]]
+conflicts = [
+    [
+        { extra = "cpu" },
+        { extra = "gpu" },
+        { extra = "rocm" },
+    ],
+]
+
 
 [tool.uv.sources]
 torch = [
     { index = "pytorch-cpu", extra = "cpu" },
     { index = "pytorch-cuda", extra = "gpu" },
+    { index = "pytorch-rocm", extra = "rocm" },
+]
+pytorch-triton-rocm = [
+    { index = "pytorch-rocm", extra = "rocm" },
 ]
 
 [[tool.uv.index]]
@@ -71,6 +86,11 @@ explicit = true
 [[tool.uv.index]]
 name = "pytorch-cuda"
 url = "https://download.pytorch.org/whl/cu129"
+explicit = true
+
+[[tool.uv.index]]
+name = "pytorch-rocm"
+url = "https://download.pytorch.org/whl/rocm6.4"
 explicit = true
 
 [build-system]
