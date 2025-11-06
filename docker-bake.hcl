@@ -46,33 +46,23 @@ target "_rocm_base" {
     dockerfile = "docker/rocm/Dockerfile"
 }
 
-# CPU target with multi-platform support (amd64 + arm64)
+# CPU target (amd64 only)
 target "cpu" {
     inherits = ["_cpu_base"]
-    platforms = ["linux/amd64", "linux/arm64"]
+    platforms = ["linux/amd64"]
     tags = [
         "${REGISTRY}/${OWNER}/${REPO}-cpu:${VERSION}",
         "${REGISTRY}/${OWNER}/${REPO}-cpu:latest"
     ]
 }
 
-# GPU target with multi-platform support (amd64 + arm64)
+# GPU target (amd64 only)
 target "gpu" {
     inherits = ["_gpu_base"]
-    platforms = ["linux/amd64", "linux/arm64"]
+    platforms = ["linux/amd64"]
     tags = [
         "${REGISTRY}/${OWNER}/${REPO}-gpu:${VERSION}",
         "${REGISTRY}/${OWNER}/${REPO}-gpu:latest"
-    ]
-}
-
-# AMD ROCm target with multi-platform support
-target "rocm" {
-    inherits = ["_rocm_base"]
-    platforms = ["linux/amd64"]
-    tags = [
-        "${REGISTRY}/${OWNER}/${REPO}-rocm:${VERSION}",
-        "${REGISTRY}/${OWNER}/${REPO}-rocm:latest"
     ]
 }
 
@@ -85,12 +75,8 @@ group "gpu" {
     targets = ["gpu"]
 }
 
-group "rocm" {
-    targets = ["rocm"]
-}
-
 group "all" {
-    targets = ["cpu", "gpu", "rocm"]
+    targets = ["cpu", "gpu"]
 }
 
 # Development targets for faster local builds

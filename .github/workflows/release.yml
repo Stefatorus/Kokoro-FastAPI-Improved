@@ -104,8 +104,8 @@ jobs:
           echo "Building and pushing ${{ matrix.build_target }} for ${{ matrix.platform }}"
           echo "Version: ${{ needs.prepare-release.outputs.version_tag }}"
 
-          # Extract base target name (cpu/gpu/rocm) from build_target
-          BASE_TARGET=$(echo "${{ matrix.build_target }}" | sed 's/-amd64$//' | sed 's/-arm64$//')
+          # Extract base target name (cpu/gpu) from build_target
+          BASE_TARGET=$(echo "${{ matrix.build_target }}" | sed 's/-amd64$//')
 
           # Build for single platform with cache
           docker buildx bake ${BASE_TARGET} \
