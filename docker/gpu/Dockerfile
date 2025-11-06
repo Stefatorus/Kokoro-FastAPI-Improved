@@ -32,6 +32,9 @@ COPY --chown=appuser:appuser AP-BWE ./AP-BWE
 COPY --chown=appuser:appuser docker/scripts/ ./
 RUN chmod +x ./entrypoint.sh
 
+# Download AP-BWE checkpoints during build (114 MB)
+RUN python3 ./download_bwe_checkpoints.py
+
 
 # Set all environment variables in one go
 ENV PATH="/app/.venv/bin:$PATH" \
