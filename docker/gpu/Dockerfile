@@ -28,6 +28,7 @@ RUN --mount=type=cache,target=/home/appuser/.cache/uv,uid=1001,gid=1001 \
 # Copy project files including models
 COPY --chown=appuser:appuser api ./api
 COPY --chown=appuser:appuser web ./web
+COPY --chown=appuser:appuser AP-BWE ./AP-BWE
 COPY --chown=appuser:appuser docker/scripts/ ./
 RUN chmod +x ./entrypoint.sh
 
@@ -35,7 +36,7 @@ RUN chmod +x ./entrypoint.sh
 # Set all environment variables in one go
 ENV PATH="/app/.venv/bin:$PATH" \
     PYTHONUNBUFFERED=1 \
-    PYTHONPATH=/app:/app/api \
+    PYTHONPATH=/app:/app/api:/app/AP-BWE \
     UV_HTTP_TIMEOUT=120 \
     UV_HTTP_RETRIES=3 \
     USE_GPU=true \
