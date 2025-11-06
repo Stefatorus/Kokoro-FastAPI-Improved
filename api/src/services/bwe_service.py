@@ -53,6 +53,7 @@ class BWEService:
         self.device = None
         self.config = None
         self._initialized = False
+        self._compiled = False
 
     def initialize(self, checkpoint_path: str, device: Optional[str] = None):
         """Initialize the BWE model
@@ -107,6 +108,21 @@ class BWEService:
             checkpoint_dict = torch.load(checkpoint_path, map_location=self.device)
             self.model.load_state_dict(checkpoint_dict['generator'])
             self.model.eval()
+
+            # Optimize model with torch.compile() for faster inference
+            # Use 'reduce-overhead' mode for lower latency, 'max-autotune' for throughput
+            try:
+                if hasattr(torch, 'compile'):
+                    logger.info("Compiling BWE model with torch.compile() for optimized inference...")
+                    compile_mode = 'reduce-overhead' if str(self.device) == 'cuda' else 'default'
+                    self.model = torch.compile(self.model, mode=compile_mode)
+                    self._compiled = True
+                    logger.info(f"BWE model compiled successfully with mode='{compile_mode}'")
+                else:
+                    logger.warning("torch.compile() not available (requires PyTorch 2.0+)")
+            except Exception as e:
+                logger.warning(f"Failed to compile BWE model (will use uncompiled): {e}")
+                self._compiled = False
 
             self._initialized = True
             logger.info(f"AP-BWE initialized successfully on {self.device}")

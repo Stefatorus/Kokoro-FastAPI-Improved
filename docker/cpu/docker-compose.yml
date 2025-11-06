@@ -6,7 +6,7 @@ services:
       dockerfile: docker/cpu/Dockerfile
     volumes:
       - ../../api:/app/api
-      - ../../AP-BWE:/app/AP-BWE  # Mount AP-BWE submodule for bandwidth extension
+      # AP-BWE is baked into image with dependencies - don't override it
       - kokoro-models:/app/api/src/models  # Persistent volume for models (600MB, downloaded once)
     ports:
       - "8880:8880"

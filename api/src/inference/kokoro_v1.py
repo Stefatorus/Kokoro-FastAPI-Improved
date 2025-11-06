@@ -60,6 +60,18 @@ class KokoroV1(BaseModelBackend):
             else:
                 self._model = self._model.cpu()
 
+            # Optimize model with torch.compile() for faster inference
+            try:
+                if hasattr(torch, 'compile'):
+                    logger.info("Compiling Kokoro model with torch.compile() for optimized inference...")
+                    compile_mode = 'reduce-overhead' if self._device in ['cuda', 'mps'] else 'default'
+                    self._model = torch.compile(self._model, mode=compile_mode)
+                    logger.info(f"Kokoro model compiled successfully with mode='{compile_mode}'")
+                else:
+                    logger.warning("torch.compile() not available (requires PyTorch 2.0+)")
+            except Exception as e:
+                logger.warning(f"Failed to compile Kokoro model (will use uncompiled): {e}")
+
         except FileNotFoundError as e:
             raise e
         except Exception as e:
