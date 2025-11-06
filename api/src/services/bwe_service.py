@@ -10,16 +10,31 @@ from loguru import logger
 from typing import Optional
 from pathlib import Path
 
-# Add AP-BWE to path
-AP_BWE_PATH = Path(__file__).parent.parent.parent.parent / "AP-BWE"
-sys.path.insert(0, str(AP_BWE_PATH))
+# Add AP-BWE to path - try multiple possible locations
+AP_BWE_PATHS = [
+    Path("/app/AP-BWE"),  # Container absolute path
+    Path(__file__).parent.parent.parent.parent / "AP-BWE",  # Relative from this file
+    Path.cwd() / "AP-BWE",  # From current working directory
+]
+
+AP_BWE_PATH = None
+for path in AP_BWE_PATHS:
+    if path.exists():
+        AP_BWE_PATH = path
+        sys.path.insert(0, str(AP_BWE_PATH))
+        logger.debug(f"Added AP-BWE path: {AP_BWE_PATH}")
+        break
+
+if AP_BWE_PATH is None:
+    logger.warning(f"AP-BWE directory not found in any of: {[str(p) for p in AP_BWE_PATHS]}")
 
 try:
     from env import AttrDict
     from datasets.dataset import amp_pha_stft, amp_pha_istft
     from models.model import APNet_BWE_Model
+    logger.debug("AP-BWE modules imported successfully")
 except ImportError as e:
-    logger.warning(f"AP-BWE not available: {e}")
+    logger.warning(f"AP-BWE not available: {e}. Please ensure that all requirements in AP-BWE are installed.")
     APNet_BWE_Model = None
 
 # Import download utility
