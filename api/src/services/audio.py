@@ -163,13 +163,15 @@ class AudioService:
     def get_bwe_service(cls) -> Optional[BWEService]:
         """Get or create BWE service instance"""
         if not settings.enable_bwe:
+            logger.debug("[BWE] BWE disabled in settings")
             return None
 
         if not BWE_AVAILABLE:
-            logger.warning("BWE requested but not available")
+            logger.warning("[BWE] BWE requested but not available (import failed)")
             return None
 
         if cls._bwe_service is None:
+            logger.info(f"[BWE] Initializing BWE service with checkpoint: {settings.bwe_checkpoint_path}")
             cls._bwe_service = BWEService()
             success = cls._bwe_service.initialize(
                 checkpoint_path=settings.bwe_checkpoint_path,
@@ -178,8 +180,11 @@ class AudioService:
             )
             if not success:
                 cls._bwe_service = None
-                logger.error("Failed to initialize BWE service")
+                logger.error("[BWE] Failed to initialize BWE service")
                 return None
+            logger.info("[BWE] BWE service initialized successfully")
+        else:
+            logger.debug("[BWE] Returning existing BWE service instance")
 
         return cls._bwe_service
 
@@ -252,18 +257,25 @@ class AudioService:
             if apply_bwe is None:
                 apply_bwe = settings.enable_bwe
 
+            logger.debug(f"[BWE] convert_audio: apply_bwe={apply_bwe}, enable_bwe={settings.enable_bwe}, audio_len={len(audio_chunk.audio)}, format={output_format}")
+
             # Apply BWE if enabled and this is not an empty finalization chunk
             if apply_bwe and len(audio_chunk.audio) > 0:
+                logger.info(f"[BWE] Attempting to get BWE service...")
                 bwe_service = AudioService.get_bwe_service()
                 if bwe_service is not None:
+                    logger.info(f"[BWE] Applying BWE to {len(audio_chunk.audio)} samples")
                     audio_chunk = AudioService.enhance_with_bwe(audio_chunk, bwe_service)
+                    logger.info(f"[BWE] Enhanced audio to {len(audio_chunk.audio)} samples at 48kHz")
                     # Update sample rate for downstream processing
                     sample_rate = settings.bwe_output_sample_rate
                     if normalizer is not None:
                         normalizer.sample_rate = sample_rate
                 else:
+                    logger.warning(f"[BWE] BWE service is None, using 24kHz")
                     sample_rate = 24000
             else:
+                logger.debug(f"[BWE] Skipping BWE (apply_bwe={apply_bwe}, audio_len={len(audio_chunk.audio)})")
                 sample_rate = 24000
 
             # Always normalize audio to ensure proper amplitude scaling
