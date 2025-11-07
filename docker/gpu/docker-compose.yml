@@ -6,8 +6,8 @@ services:
       context: ../..
       dockerfile: docker/gpu/Dockerfile
     volumes:
-      - ../../api:/app/api
-      # AP-BWE is baked into image with dependencies - don't override it
+      # DO NOT mount ../../api:/app/api - it overwrites the integrated BWE package!
+      # For development with hot-reload, rebuild the image instead
       - kokoro-models:/app/api/src/models  # Persistent volume for models (600MB, downloaded once)
     user: "1001:1001"  # Ensure container runs as UID 1001 (appuser)
     ports:
