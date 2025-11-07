@@ -60,6 +60,53 @@ class KokoroV1(BaseModelBackend):
             else:
                 self._model = self._model.cpu()
 
+            # Apply quantization if requested
+            precision = settings.kokoro_precision.lower()
+            if precision != "fp32":
+                logger.info(f"Applying {precision.upper()} quantization to Kokoro model...")
+
+                # Check if selective quantization is enabled
+                if hasattr(settings, 'kokoro_selective_quant') and settings.kokoro_selective_quant:
+                    # Use selective quantization with presets
+                    from .quantization_utils import (
+                        QuantizationConfig, apply_selective_quantization,
+                        KOKORO_MODULE_MAP, log_model_precision_summary
+                    )
+
+                    # Determine preset from precision
+                    if precision == "fp16":
+                        preset = QuantizationConfig.PRESET_MAX_SPEED
+                    elif precision == "bf16":
+                        preset = QuantizationConfig.PRESET_BALANCED
+                    else:
+                        preset = None
+
+                    if preset:
+                        config = QuantizationConfig(preset=preset)
+                        self._model = apply_selective_quantization(
+                            self._model, config, KOKORO_MODULE_MAP
+                        )
+                        log_model_precision_summary(self._model)
+                    else:
+                        logger.warning(f"No selective preset for '{precision}', using uniform quantization")
+                        if precision == "fp16":
+                            self._model = self._model.half()
+                        elif precision == "bf16":
+                            self._model = self._model.to(torch.bfloat16)
+                else:
+                    # Uniform quantization (legacy mode)
+                    if precision == "fp16":
+                        self._model = self._model.half()
+                        logger.info("Kokoro model converted to FP16 (uniform)")
+                    elif precision == "bf16":
+                        if self._device == "cuda" and torch.cuda.is_bf16_supported():
+                            self._model = self._model.to(torch.bfloat16)
+                            logger.info("Kokoro model converted to BF16 (uniform)")
+                        else:
+                            logger.warning("BF16 not supported on this device, keeping FP32")
+                    else:
+                        logger.warning(f"Unknown precision '{precision}', keeping FP32")
+
             # Optimize model with torch.compile() for faster inference
             try:
                 if hasattr(torch, 'compile'):

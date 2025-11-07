@@ -1,6 +1,5 @@
-"""Bandwidth Extension service using AP-BWE"""
+"""Bandwidth Extension service using integrated BWE"""
 
-import sys
 import os
 import json
 import torch
@@ -8,33 +7,13 @@ import torchaudio.functional as aF
 import numpy as np
 from loguru import logger
 from typing import Optional
-from pathlib import Path
 
-# Add AP-BWE to path - try multiple possible locations
-AP_BWE_PATHS = [
-    Path("/app/AP-BWE"),  # Container absolute path
-    Path(__file__).parent.parent.parent.parent / "AP-BWE",  # Relative from this file
-    Path.cwd() / "AP-BWE",  # From current working directory
-]
-
-AP_BWE_PATH = None
-for path in AP_BWE_PATHS:
-    if path.exists():
-        AP_BWE_PATH = path
-        sys.path.insert(0, str(AP_BWE_PATH))
-        logger.debug(f"Added AP-BWE path: {AP_BWE_PATH}")
-        break
-
-if AP_BWE_PATH is None:
-    logger.warning(f"AP-BWE directory not found in any of: {[str(p) for p in AP_BWE_PATHS]}")
-
+# Import BWE modules from integrated package
 try:
-    from env import AttrDict
-    from datasets.dataset import amp_pha_stft, amp_pha_istft
-    from models.model import APNet_BWE_Model
-    logger.debug("AP-BWE modules imported successfully")
+    from .bwe import AttrDict, amp_pha_stft, amp_pha_istft, APNet_BWE_Model
+    logger.debug("BWE modules imported successfully from integrated package")
 except ImportError as e:
-    logger.warning(f"AP-BWE not available: {e}. Please ensure that all requirements in AP-BWE are installed.")
+    logger.warning(f"BWE not available: {e}")
     APNet_BWE_Model = None
 
 # Import download utility
@@ -54,13 +33,15 @@ class BWEService:
         self.config = None
         self._initialized = False
         self._compiled = False
+        self.precision = "fp32"  # Default precision
 
-    def initialize(self, checkpoint_path: str, device: Optional[str] = None):
+    def initialize(self, checkpoint_path: str, device: Optional[str] = None, precision: str = "fp32"):
         """Initialize the BWE model
 
         Args:
             checkpoint_path: Path to the AP-BWE checkpoint file (e.g., 'AP-BWE/checkpoints/24kto48k/g_24kto48k')
             device: Device to use ('cuda' or 'cpu'). If None, auto-detect.
+            precision: Model precision ('fp32', 'fp16', 'bf16', 'fp8'). Default is 'fp32'.
         """
         if APNet_BWE_Model is None:
             logger.error("AP-BWE not available. Please install AP-BWE dependencies.")
@@ -108,6 +89,36 @@ class BWEService:
             checkpoint_dict = torch.load(checkpoint_path, map_location=self.device)
             self.model.load_state_dict(checkpoint_dict['generator'])
             self.model.eval()
+
+            # Apply precision conversion
+            self.precision = precision.lower()
+            if self.precision == "fp16":
+                logger.info("Converting model to FP16 (half precision)")
+                self.model = self.model.half()
+            elif self.precision == "bf16":
+                if torch.cuda.is_available() and torch.cuda.is_bf16_supported():
+                    logger.info("Converting model to BF16 (bfloat16)")
+                    self.model = self.model.to(torch.bfloat16)
+                else:
+                    logger.warning("BF16 not supported on this device, falling back to FP32")
+                    self.precision = "fp32"
+            elif self.precision == "fp8":
+                # FP8 support - requires PyTorch 2.1+ and CUDA compute capability 8.9+
+                try:
+                    if hasattr(torch, 'float8_e4m3fn'):
+                        logger.info("Converting model to FP8 (float8_e4m3fn)")
+                        self.model = self.model.to(torch.float8_e4m3fn)
+                    else:
+                        logger.warning("FP8 not available in this PyTorch version, falling back to FP16")
+                        self.model = self.model.half()
+                        self.precision = "fp16"
+                except Exception as e:
+                    logger.warning(f"FP8 conversion failed: {e}, falling back to FP16")
+                    self.model = self.model.half()
+                    self.precision = "fp16"
+            elif self.precision != "fp32":
+                logger.warning(f"Unknown precision '{precision}', using FP32")
+                self.precision = "fp32"
 
             # Optimize model with torch.compile() for faster inference
             # Use 'reduce-overhead' mode for lower latency, 'max-autotune' for throughput
@@ -187,9 +198,14 @@ class BWEService:
                     # Average stereo to mono for BWE processing
                     # AP-BWE is trained on mono audio, so we convert to mono
                     logger.debug("Converting stereo to mono for BWE processing")
-                    audio_mono = audio_tensor.mean(dim=0, keepdim=True).to(self.device)
+                    audio_mono = audio_tensor.mean(dim=0, keepdim=True)
 
-                    # STFT at 24kHz - BWE model will extend bandwidth to 48kHz
+                    # Upsample 24kHz -> 48kHz (AP-BWE expects 48kHz input with limited bandwidth)
+                    # This matches the official inference code
+                    audio_mono = aF.resample(audio_mono, orig_freq=24000, new_freq=48000).to(self.device)
+
+                    # Keep as FP32 for STFT (reflection_pad1d doesn't support FP16/BF16)
+                    # STFT at 48kHz - BWE model will extend bandwidth
                     amp_nb, pha_nb, com_nb = amp_pha_stft(
                         audio_mono,
                         self.config.n_fft,
@@ -197,8 +213,27 @@ class BWEService:
                         self.config.win_size
                     )
 
+                    # Convert STFT outputs to model precision for BWE inference
+                    if self.precision == "fp16":
+                        amp_nb = amp_nb.half()
+                        pha_nb = pha_nb.half()
+                    elif self.precision == "bf16":
+                        amp_nb = amp_nb.to(torch.bfloat16)
+                        pha_nb = pha_nb.to(torch.bfloat16)
+                    elif self.precision == "fp8":
+                        if hasattr(torch, 'float8_e4m3fn'):
+                            amp_nb = amp_nb.to(torch.float8_e4m3fn)
+                            pha_nb = pha_nb.to(torch.float8_e4m3fn)
+                        else:
+                            amp_nb = amp_nb.half()
+                            pha_nb = pha_nb.half()
+
                     # Enhance with AP-BWE
                     amp_wb_g, pha_wb_g, com_wb_g = self.model(amp_nb, pha_nb)
+
+                    # Convert back to FP32 for ISTFT (torch.istft requires FP32)
+                    amp_wb_g = amp_wb_g.float()
+                    pha_wb_g = pha_wb_g.float()
 
                     # ISTFT
                     audio_enhanced = amp_pha_istft(
@@ -215,10 +250,15 @@ class BWEService:
                 else:
                     logger.debug("Processing mono audio")
 
+                    # Upsample 24kHz -> 48kHz (AP-BWE expects 48kHz input with limited bandwidth)
+                    # This matches the official inference code
+                    audio_tensor = aF.resample(audio_tensor, orig_freq=24000, new_freq=48000)
+
                     # Move to device
                     audio_tensor = audio_tensor.to(self.device)
 
-                    # STFT at 24kHz - BWE model will extend bandwidth to 48kHz
+                    # Keep as FP32 for STFT (reflection_pad1d doesn't support FP16/BF16)
+                    # STFT at 48kHz - BWE model will extend bandwidth
                     amp_nb, pha_nb, com_nb = amp_pha_stft(
                         audio_tensor,
                         self.config.n_fft,
@@ -226,8 +266,27 @@ class BWEService:
                         self.config.win_size
                     )
 
+                    # Convert STFT outputs to model precision for BWE inference
+                    if self.precision == "fp16":
+                        amp_nb = amp_nb.half()
+                        pha_nb = pha_nb.half()
+                    elif self.precision == "bf16":
+                        amp_nb = amp_nb.to(torch.bfloat16)
+                        pha_nb = pha_nb.to(torch.bfloat16)
+                    elif self.precision == "fp8":
+                        if hasattr(torch, 'float8_e4m3fn'):
+                            amp_nb = amp_nb.to(torch.float8_e4m3fn)
+                            pha_nb = pha_nb.to(torch.float8_e4m3fn)
+                        else:
+                            amp_nb = amp_nb.half()
+                            pha_nb = pha_nb.half()
+
                     # Enhance with AP-BWE
                     amp_wb_g, pha_wb_g, com_wb_g = self.model(amp_nb, pha_nb)
+
+                    # Convert back to FP32 for ISTFT (torch.istft requires FP32)
+                    amp_wb_g = amp_wb_g.float()
+                    pha_wb_g = pha_wb_g.float()
 
                     # ISTFT
                     audio_enhanced = amp_pha_istft(
@@ -239,7 +298,8 @@ class BWEService:
                     )
 
                 # Convert back to int16
-                audio_out = audio_enhanced.squeeze().cpu().numpy()
+                # Ensure float32 for proper conversion from fp16/bf16
+                audio_out = audio_enhanced.squeeze().float().cpu().numpy()
                 audio_out = np.clip(audio_out * 32768.0, -32768, 32767).astype(np.int16)
 
                 return audio_out

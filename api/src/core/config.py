@@ -21,6 +21,8 @@ class Settings(BaseSettings):
     device_type: str | None = (
         None  # Will be auto-detected if None, can be "cuda", "mps", or "cpu"
     )
+    kokoro_precision: str = "fp32"  # Kokoro TTS model precision: "fp32", "fp16", "bf16"
+    kokoro_selective_quant: bool = False  # Enable selective layer-wise quantization (keeps vocoder/norms in higher precision)
     allow_local_voice_saving: bool = (
         False  # Whether to allow saving combined voices locally
     )
@@ -36,6 +38,7 @@ class Settings(BaseSettings):
     # Bandwidth Extension Settings (AP-BWE)
     enable_bwe: bool = False  # Whether to enable bandwidth extension (24 kHz → 48 kHz)
     bwe_checkpoint_path: str = "/app/AP-BWE/checkpoints/24kto48k/g_24kto48k"  # Path to AP-BWE checkpoint (absolute path in container)
+    bwe_precision: str = "fp32"  # BWE model precision: "fp32", "fp16", "bf16", or "fp8"
     bwe_output_sample_rate: int = 48000  # Output sample rate after BWE
     # Text Processing Settings
     target_min_tokens: int = 175  # Target minimum tokens per chunk

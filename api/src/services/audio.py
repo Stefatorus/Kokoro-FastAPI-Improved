@@ -173,7 +173,8 @@ class AudioService:
             cls._bwe_service = BWEService()
             success = cls._bwe_service.initialize(
                 checkpoint_path=settings.bwe_checkpoint_path,
-                device=settings.get_device()
+                device=settings.get_device(),
+                precision=settings.bwe_precision
             )
             if not success:
                 cls._bwe_service = None
