@@ -48,6 +48,12 @@ def setup_logger():
 # Configure logger
 setup_logger()
 
+# Enable cuDNN benchmarking for optimal performance
+# This auto-tunes kernel selection for specific hardware and input sizes
+if torch.cuda.is_available():
+    torch.backends.cudnn.benchmark = True
+    logger.info("cuDNN benchmark mode enabled for optimized kernel selection")
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
